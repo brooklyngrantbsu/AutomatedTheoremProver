@@ -257,6 +257,41 @@ void AddKBSentence(void) {
    StringToSentence(sent);
 }
 
+
+/* literal matching and substitution handling */
+int Unify(int sent1, int sent2) {
+   Sentence *s1 = &sentlist[sent1];
+   Sentence *s2 = &sentlist[sent2];
+
+   if (s1->num_pred != s2->num_pred) return 0; // Sentences must have the same number of predicates
+
+   for (int i = 0; i < s1->num_pred; i++) {
+      if (s1->pred[i] != s2->pred[i]) return 0; // Predicates must match
+
+      for (int j = 0; j < predlist[s1->pred[i]].numparam; j++) {
+         Parameter *p1 = &s1->param[i][j];
+         Parameter *p2 = &s2->param[i][j];
+
+         if (constant(*p1) && constant(*p2)) {
+            // both are constants, make sure they are the same value
+            if (strcmp(p1->con, p2->con) != 0) return 0;
+         } else if (variable(*p1)) {
+            // first param is a variable, set it to the second
+            strcpy(p1->con, p2->con);
+            p1->var = 0;
+         } else if (variable(*p2)) {
+            // second param is a variable, set it to the first
+            strcpy(p2->con, p1->con);
+            p2->var = 0;
+         } else {
+            return 0; // Fail!
+         }
+      }
+   }
+
+   return 1; // Success!
+}
+
 /* randomly resolve statment */
 void RandomResolve()
 {
@@ -344,40 +379,6 @@ void HeuristicResolve()
    } else {
       printf("HeuristicResolve: Resolution failed\n");
    }
-}
-
-/* literal matching and substitution handling */
-int Unify(int sent1, int sent2) {
-   Sentence *s1 = &sentlist[sent1];
-   Sentence *s2 = &sentlist[sent2];
-
-   if (s1->num_pred != s2->num_pred) return 0; // Sentences must have the same number of predicates
-
-   for (int i = 0; i < s1->num_pred; i++) {
-      if (s1->pred[i] != s2->pred[i]) return 0; // Predicates must match
-
-      for (int j = 0; j < predlist[s1->pred[i]].numparam; j++) {
-         Parameter *p1 = &s1->param[i][j];
-         Parameter *p2 = &s2->param[i][j];
-
-         if (constant(*p1) && constant(*p2)) {
-            // both are constants, make sure they are the same value
-            if (strcmp(p1->con, p2->con) != 0) return 0;
-         } else if (variable(*p1)) {
-            // first param is a variable, set it to the second
-            strcpy(p1->con, p2->con);
-            p1->var = 0;
-         } else if (variable(*p2)) {
-            // second param is a variable, set it to the first
-            strcpy(p2->con, p1->con);
-            p2->var = 0;
-         } else {
-            return 0; // Fail!
-         }
-      }
-   }
-
-   return 1; // Success!
 }
 
 /* testing two different resolves */
