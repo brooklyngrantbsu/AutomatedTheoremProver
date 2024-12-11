@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <time.h>
+#include <limits.h>
 
 #define MAXPRED 50
 #define MAXPARAM 10
@@ -256,40 +257,134 @@ void AddKBSentence(void) {
    StringToSentence(sent);
 }
 
-/* You must write this function */
+/* randomly resolve statment */
 void RandomResolve()
 {
    rTime=0.0;
    rSteps=0;
-   printf("\nRun your RandomResolve routine here\n");
+   int resolved = 0;
+   clock_t start, end;
+   start = clock();
 
-   rTime=100.0; /* change these two lines to reflect the actual time, #steps */
-   rSteps=20;
+   while (!resolved && rSteps < MAXSUB) {
+      // randomly select two sentences to resolve
+      int sent1 = rand() % sentptr;
+      int sent2 = rand() % sentptr;
 
-   printf("RandomResolve: #steps = %i, time = %lg\n\n",rSteps, rTime);
+      if (sent1 == sent2) continue; // if equal no need to resolve
+
+      // unify and resolve if possible
+      if (Unify(sent1, sent2)) {
+         // check for contradiction
+         for (int i = 0; i < sentlist[sentptr - 1].num_pred; i++) {
+            if (sentlist[sentptr - 1].pred[i] == -1) {
+               resolved = 1;
+               break;
+            }
+         }
+      }
+      rSteps++; // resolution step count
+   }
+
+   end = clock();
+   rTime = (double)(end - start) / CLOCKS_PER_SEC;
+
+   if (resolved) {   
+      printf("RandomResolve: #steps = %i, time = %lg\n\n",rSteps, rTime);
+   } else {
+      printf("RandomResolve: Resolution failed\n");
+   }
 }
 
-/* You must write this function */
+/* resolve by using heuristic of resolving the smallest number of literals first */
 void HeuristicResolve()
 {
    hTime=0.0;
    hSteps=0;
-   printf("\nRun your HeuristicResolve routine here\n");
+   int resolved = 0;
+   clock_t start, end;
+   start = clock();
 
-   hTime=50.0; /* change these two lines to reflect the actual time, #steps */
-   hSteps=10;
-   
-   printf("HeuristicResolve: #steps = %i, time = %lg\n\n",hSteps, hTime);
+   while (!resolved && hSteps < MAXSUB) {
+      int bestSent1 = -1, bestSent2 = -1;
+      int minLiterals = INT_MAX;
+
+      // use the smallest number of literals to resolve
+      for (int i = 0; i < sentptr; i++) {
+         for (int j = i + 1; j < sentptr; j++) {
+            int totalLiterals = sentlist[i].num_pred + sentlist[j].num_pred;
+            if (totalLiterals < minLiterals) {
+               minLiterals = totalLiterals;
+               bestSent1 = i;
+               bestSent2 = j;
+            }
+         }
+      }
+
+      if (bestSent1 == -1 || bestSent2 == -1) break; // no more valid pairs
+
+      // unify and resolve if possible
+      if (Unify(bestSent1, bestSent2)) {
+         // check for contradiction
+         for (int i = 0; i < sentlist[sentptr - 1].num_pred; i++) {
+            if (sentlist[sentptr - 1].pred[i] == -1) {
+               resolved = 1;
+               break;
+            }
+         }
+      }
+      hSteps++; // resolution step count
+   }
+
+   end = clock();
+   hTime = (double)(end - start) / CLOCKS_PER_SEC;
+
+   if (resolved) {
+      printf("HeuristicResolve: #steps = %i, time = %lg\n\n",hSteps, hTime);
+   } else {
+      printf("HeuristicResolve: Resolution failed\n");
+   }
 }
 
-/* You must write this function */
-int Unify(int sent1, int sent2) {}
+/* literal matching and substitution handling */
+int Unify(int sent1, int sent2) {
+   Sentence *s1 = &sentlist[sent1];
+   Sentence *s2 = &sentlist[sent2];
 
-/* You must write this function */
+   if (s1->num_pred != s2->num_pred) return 0; // Sentences must have the same number of predicates
+
+   for (int i = 0; i < s1->num_pred; i++) {
+      if (s1->pred[i] != s2->pred[i]) return 0; // Predicates must match
+
+      for (int j = 0; j < predlist[s1->pred[i]].numparam; j++) {
+         Parameter *p1 = &s1->param[i][j];
+         Parameter *p2 = &s2->param[i][j];
+
+         if (constant(*p1) && constant(*p2)) {
+            // both are constants, make sure they are the same value
+            if (strcmp(p1->con, p2->con) != 0) return 0;
+         } else if (variable(*p1)) {
+            // first param is a variable, set it to the second
+            strcpy(p1->con, p2->con);
+            p1->var = 0;
+         } else if (variable(*p2)) {
+            // second param is a variable, set it to the first
+            strcpy(p2->con, p1->con);
+            p2->var = 0;
+         } else {
+            return 0; // Fail!
+         }
+      }
+   }
+
+   return 1; // Success!
+}
+
+/* testing two different resolves */
 void Resolve(void) {
    RandomResolve();
    HeuristicResolve();
-   printf("Heuristic vs Random ratios:  hSteps/rSteps = %lg, hTime/rTime = %lg\n\n",(double)hSteps/(double)rSteps, hTime/rTime);
+   printf("Heuristic vs Random ratios: hSteps/rSteps = %lg, hTime/rTime = %lg\n\n",(double)hSteps/(double)rSteps, hTime/rTime);
 }
 
 /* User enters a the negation of their query.  This is added to KB, and then KB is resolved to find solution */
