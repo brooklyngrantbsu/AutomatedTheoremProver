@@ -1,5 +1,5 @@
 P(a) Q(a)
-!P(A) !Q(B)
+!Q(B) !P(A)
 P(A) !Z(B)
 Q(B)
 
