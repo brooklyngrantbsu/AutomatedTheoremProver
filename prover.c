@@ -264,8 +264,8 @@ int Unify(int sent1, int sent2) {
     Sentence *s2 = &sentlist[sent2];
     int resolved = 0;
 
-    Sentence newSent; // Declare newSent locally
-    memset(&newSent, 0, sizeof(Sentence)); // Clear before use
+    Sentence newSent;
+    memset(&newSent, 0, sizeof(Sentence));
 
     for (int i = 0; i < s1->num_pred; i++) {
         for (int j = 0; j < s2->num_pred; j++) {
@@ -274,43 +274,19 @@ int Unify(int sent1, int sent2) {
                 continue;
             }
             // Copy predicates into newSent
-            if (!resolved) {
-                newSent.pred[newSent.num_pred] = s1->pred[i];
-                newSent.neg[newSent.num_pred] = s1->neg[i];
-                memcpy(newSent.param[newSent.num_pred], s1->param[i], sizeof(Parameter) * MAXPARAM);
-                newSent.num_pred++;
-            }
+            newSent.pred[newSent.num_pred] = s1->pred[i];
+            newSent.neg[newSent.num_pred] = s1->neg[i];
+            memcpy(newSent.param[newSent.num_pred], s1->param[i], sizeof(Parameter) * MAXPARAM);
+            newSent.num_pred++;
         }
     }
 
     if (resolved) {
-        sentlist[sentptr++] = newSent; // Add to KB
+        sentlist[sentptr++] = newSent; // Add the resolved sentence to the KB
     }
 
     return resolved;
 }
-
-
-
-void LogResolution(int sent1, int sent2) {
-    printf("Resolved sentences %d and %d:\n", sent1, sent2);
-
-    Sentence *s = &sentlist[sentptr - 1]; // Last added sentence
-    for (int i = 0; i < s->num_pred; i++) {
-        if (s->neg[i]) printf("!");
-        printf("%s(", predlist[s->pred[i]].name);
-        for (int j = 0; j < predlist[s->pred[i]].numparam; j++) {
-            if (constant(s->param[i][j]))
-                printf("%s", s->param[i][j].con);
-            else
-                printf("%c", 'a' + (s->param[i][j].var % 26));
-            if (j < predlist[s->pred[i]].numparam - 1) printf(",");
-        }
-        printf(") ");
-    }
-    printf("\n");
-}
-
 
 
 /* randomly resolve statment */
@@ -328,9 +304,9 @@ void RandomResolve() {
         if (sent1 == sent2) continue;
 
         if (Unify(sent1, sent2)) {
-            LogResolution(sent1, sent2);
+    		printf("Resolved sentences %d and %d\n", sent1, sent2);
 
-            // Check if the last sentence in the KB resolves to a contradiction
+            // check if the last sentence in the KB is a contradiction
             if (sentlist[sentptr - 1].num_pred == 0) {
                 printf("RandomResolve: Sentences %d and %d Complete the Proof!\n", sent1, sent2);
                 resolved = 1;
@@ -344,7 +320,7 @@ void RandomResolve() {
     rTime = (double)(end - start) / CLOCKS_PER_SEC;
 
     if (!resolved) {
-        printf("RandomResolve: Resolution failed after %d steps\n", rSteps);
+        printf("RandomResolve: Resolving failed after %d steps\n", rSteps);
     }
 }
 
@@ -357,7 +333,7 @@ void HeuristicResolve() {
     clock_t start, end;
     start = clock();
 
-    Sentence newSent; // Temporary structure for resolved sentence
+    int attempted[MAXSENT][MAXSENT] = {0}; // Track attempted pairs
 
     while (!resolved && hSteps < MAXSUB) {
         int bestSent1 = -1, bestSent2 = -1;
@@ -366,6 +342,8 @@ void HeuristicResolve() {
         // Find the pair with the smallest number of literals
         for (int i = 0; i < sentptr; i++) {
             for (int j = i + 1; j < sentptr; j++) {
+                if (attempted[i][j]) continue; // Skip already attempted pairs
+
                 int totalLiterals = sentlist[i].num_pred + sentlist[j].num_pred;
                 if (totalLiterals < minLiterals) {
                     minLiterals = totalLiterals;
@@ -375,21 +353,25 @@ void HeuristicResolve() {
             }
         }
 
-        if (bestSent1 == -1 || bestSent2 == -1) break;
+        if (bestSent1 == -1 || bestSent2 == -1) {
+            printf("No valid sentence pair found. Exiting loop.\n");
+            break;
+        }
 
-        // Attempt to unify the best pair
-        memset(&newSent, 0, sizeof(Sentence)); // Clear newSent before use
+        attempted[bestSent1][bestSent2] = 1; // Mark pair as attempted
+
+        // unify the best pair
         if (Unify(bestSent1, bestSent2)) {
-            sentlist[sentptr++] = newSent; // Add to KB
-            LogResolution(bestSent1, bestSent2);
+    		printf("Resolved sentences %d and %d\n", bestSent1, bestSent2);
 
-            // Check for contradiction
+            // check for contradiction
             if (sentlist[sentptr - 1].num_pred == 0) {
                 printf("HeuristicResolve: Sentences %d and %d Complete the Proof!\n", bestSent1, bestSent2);
                 resolved = 1;
                 break;
             }
         }
+
         hSteps++;
     }
 
@@ -397,7 +379,7 @@ void HeuristicResolve() {
     hTime = (double)(end - start) / CLOCKS_PER_SEC;
 
     if (!resolved) {
-        printf("HeuristicResolve: Resolution failed\n");
+        printf("HeuristicResolve: Resolving failed\n");
     }
 }
 
